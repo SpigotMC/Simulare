@@ -30,11 +30,26 @@ public class TransformMojo extends AbstractMojo
      */
     @Parameter(property = "project.build.outputDirectory", required = true)
     private File classDirectory;
+    /**
+     * Counter of how many classes we have processed.
+     */
+    private int classCount;
+    /**
+     * Counter of how many things we have transformed.
+     */
+    private int transformCount;
 
     @Override
     public void execute() throws MojoExecutionException
     {
         walk( classDirectory, new SuffixFilter( ".class" ) );
+
+        getLog().info( "Read " + classCount + " class" + plural( classCount, "es" ) + ", transformed " + transformCount + " instance" + plural( transformCount, "s" ) + " of Java 7-isms." );
+    }
+
+    private String plural(int count, String plural)
+    {
+        return ( count != 1 ) ? plural : "";
     }
 
     private void walk(File dir, FileFilter filter) throws MojoExecutionException
@@ -82,11 +97,9 @@ public class TransformMojo extends AbstractMojo
         {
             throw new MojoExecutionException( "Error whilst reading / writing class file : " + file, ex );
         }
-
-        getLog().info( "Transformed: " + file );
     }
 
-    private static class ClassTransformer extends ClassVisitor
+    private class ClassTransformer extends ClassVisitor
     {
 
         public ClassTransformer(ClassVisitor cv)
@@ -102,6 +115,8 @@ public class TransformMojo extends AbstractMojo
                 throw new RuntimeException( "Cannot transform classes greater than Java 1.7" );
             }
 
+            classCount++;
+
             super.visit( ( version == Opcodes.V1_7 ) ? Opcodes.V1_6 : version, access, name, signature, superName, interfaces );
         }
 
@@ -111,7 +126,7 @@ public class TransformMojo extends AbstractMojo
             return new MethodTransformer( super.visitMethod( access, name, desc, signature, exceptions ) );
         }
 
-        private static class MethodTransformer extends MethodVisitor
+        private class MethodTransformer extends MethodVisitor
         {
 
             public MethodTransformer(MethodVisitor mv)
@@ -158,6 +173,8 @@ public class TransformMojo extends AbstractMojo
 
                     // Leave a marker for the next instruction
                     super.visitLabel( next );
+
+                    transformCount++;
                 } else
                 {
                     super.visitMethodInsn( opcode, owner, name, desc, itf );
