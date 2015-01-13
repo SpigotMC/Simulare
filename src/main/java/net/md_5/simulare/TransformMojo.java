@@ -10,6 +10,8 @@ import java.io.FileFilter;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import org.objectweb.asm.Attribute;
+import org.objectweb.asm.ByteVector;
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.ClassVisitor;
 import org.objectweb.asm.ClassWriter;
@@ -35,6 +37,10 @@ public class TransformMojo extends AbstractMojo
      */
     private int classCount;
     /**
+     * Counter of how many classes we have skipped.
+     */
+    private int skipCount;
+    /**
      * Counter of how many things we have transformed.
      */
     private int transformCount;
@@ -44,7 +50,8 @@ public class TransformMojo extends AbstractMojo
     {
         walk( classDirectory, new SuffixFilter( ".class" ) );
 
-        getLog().info( "Read " + classCount + " class" + plural( classCount, "es" ) + ", transformed " + transformCount + " instance" + plural( transformCount, "s" ) + " of Java 7-isms." );
+        getLog().info( "Read " + classCount + " class" + plural( classCount, "es" ) + ", skipped " + skipCount
+                + ", transformed " + transformCount + " instance" + plural( transformCount, "s" ) + " of Java 7-isms." );
     }
 
     private String plural(int count, String plural)
@@ -85,13 +92,20 @@ public class TransformMojo extends AbstractMojo
             ClassTransformer transformer = new ClassTransformer( writer );
             reader.accept( transformer, 0 );
 
-            FileOutputStream out = new FileOutputStream( file );
-            try
+            // Already transformed at another point?
+            if ( !transformer.transformed )
             {
-                out.write( writer.toByteArray() );
-            } finally
-            {
-                out.close();
+                // Add transformed marker
+                writer.visitAttribute( new SimulareAttribute() );
+
+                FileOutputStream out = new FileOutputStream( file );
+                try
+                {
+                    out.write( writer.toByteArray() );
+                } finally
+                {
+                    out.close();
+                }
             }
         } catch ( IOException ex )
         {
@@ -101,6 +115,8 @@ public class TransformMojo extends AbstractMojo
 
     private class ClassTransformer extends ClassVisitor
     {
+
+        private boolean transformed;
 
         public ClassTransformer(ClassVisitor cv)
         {
@@ -121,8 +137,25 @@ public class TransformMojo extends AbstractMojo
         }
 
         @Override
+        public void visitAttribute(Attribute attr)
+        {
+            if ( attr.type.equals( SimulareAttribute.TYPE ) )
+            {
+                skipCount++;
+                transformed = true;
+            }
+
+            super.visitAttribute( attr );
+        }
+
+        @Override
         public MethodVisitor visitMethod(int access, String name, String desc, String signature, String[] exceptions)
         {
+            if ( transformed )
+            {
+                return super.visitMethod( access, name, desc, signature, exceptions );
+            }
+
             return new MethodTransformer( super.visitMethod( access, name, desc, signature, exceptions ) );
         }
 
@@ -180,6 +213,23 @@ public class TransformMojo extends AbstractMojo
                     super.visitMethodInsn( opcode, owner, name, desc, itf );
                 }
             }
+        }
+    }
+
+    private static class SimulareAttribute extends Attribute
+    {
+
+        public static final String TYPE = "Simulare";
+
+        public SimulareAttribute()
+        {
+            super( TYPE );
+        }
+
+        @Override
+        protected ByteVector write(ClassWriter cw, byte[] code, int len, int maxStack, int maxLocals)
+        {
+            return new ByteVector( 0 );
         }
     }
 
