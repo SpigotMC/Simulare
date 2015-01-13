@@ -68,7 +68,7 @@ public class TransformMojo extends AbstractMojo
 
             ClassWriter writer = new ClassWriter( reader, 0 );
             ClassTransformer transformer = new ClassTransformer( writer );
-            reader.accept( transformer, ClassReader.EXPAND_FRAMES );
+            reader.accept( transformer, 0 );
 
             FileOutputStream out = new FileOutputStream( file );
             try
