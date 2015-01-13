@@ -128,7 +128,7 @@ public class TransformMojo extends AbstractMojo
         {
             if ( version > Opcodes.V1_7 )
             {
-                throw new RuntimeException( "Cannot transform classes greater than Java 1.7" );
+                throw new IllegalArgumentException( "Cannot transform classes greater than Java 1.7" );
             }
 
             classCount++;
@@ -141,6 +141,11 @@ public class TransformMojo extends AbstractMojo
         {
             if ( attr.type.equals( SimulareAttribute.TYPE ) )
             {
+                if ( transformed )
+                {
+                    throw new IllegalStateException( "Duplicate Simulare attribute!" );
+                }
+
                 skipCount++;
                 transformed = true;
             }
